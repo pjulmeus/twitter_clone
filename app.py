@@ -4,7 +4,7 @@ from flask import Flask, render_template, request, flash, redirect, session, g
 from flask_debugtoolbar import DebugToolbarExtension
 from sqlalchemy.exc import IntegrityError
 
-from forms import UserAddForm, LoginForm, MessageForm
+from forms import UserAddForm, LoginForm, MessageForm, EditProfileForm
 from models import db, connect_db, User, Message
 
 CURR_USER_KEY = "curr_user"
@@ -74,6 +74,9 @@ def signup():
                 password=form.password.data,
                 email=form.email.data,
                 image_url=form.image_url.data or User.image_url.default.arg,
+                # header_image_url = form.header_image_url.data or User.header_image_url.default.arg,
+                # bio = form.bio.data,
+                # location = form.location.data
             )
             db.session.commit()
 
@@ -112,8 +115,12 @@ def login():
 @app.route('/logout')
 def logout():
     """Handle logout of user."""
-
+    if CURR_USER_KEY in session:
+        logout_user = User.query.get(session[CURR_USER_KEY])
+        flash(f"Hello, {logout_user.username} has logged out!", "success")
     # IMPLEMENT THIS
+        session.pop(CURR_USER_KEY)
+        return redirect('/')
 
 
 ##############################################################################
@@ -210,8 +217,35 @@ def stop_following(follow_id):
 @app.route('/users/profile', methods=["GET", "POST"])
 def profile():
     """Update profile for current user."""
+    if not g.user:
+        flash("Access unauthorized.", "danger")
+        return redirect('/')
+    
+    else:
+        user_profile = User.query.get(g.user.id)
+        form = EditProfileForm()
 
-    # IMPLEMENT THIS
+        if form.validate_on_submit(): 
+            if form.email.data:
+                user_profile.email = form.email.data
+            if form.image_url.data:
+                user_profile.image_url = form.image_url.data
+            if form.header_image_url.data:
+                user_profile.header_image_url = form.header_image_url.data
+            if form.bio.data:
+                user_profile.bio = form.bio.data
+            if User.authenticate(user_profile.username, form.password.data):
+                if form.username.data:
+                    user_profile.username = form.username.data
+                db.session.commit()    
+                flash("Access authorized", "success")
+                return redirect(f"/users/{g.user.id}")
+            else:
+                flash("Access unauthorized password", "danger")
+                return render_template('users/edit.html', form = form)
+        else:       
+            return render_template('users/edit.html', form = form)
+    
 
 
 @app.route('/users/delete', methods=["POST"])
@@ -290,9 +324,9 @@ def homepage():
     - anon users: no messages
     - logged in: 100 most recent messages of followed_users
     """
-
-    if g.user:
-        messages = (Message
+    user_follower = (Message.query.get(g.user.id))
+    if g.user:   
+        messages = (user_follower
                     .query
                     .order_by(Message.timestamp.desc())
                     .limit(100)

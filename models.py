@@ -83,15 +83,17 @@ class User(db.Model):
 
     bio = db.Column(
         db.Text,
+        nullable=True
     )
 
     location = db.Column(
         db.Text,
+        nullable=True
     )
 
     password = db.Column(
         db.Text,
-        nullable=False,
+        nullable=False
     )
 
     messages = db.relationship('Message')
